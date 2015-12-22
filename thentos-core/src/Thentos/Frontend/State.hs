@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeOperators         #-}
 
 module Thentos.Frontend.State where
@@ -102,28 +101,31 @@ cookieNameValid = SBS.all (`elem` (fromIntegral . ord <$> '_':['a'..'z']))
 
 thentosSessionMiddleware :: IO (Middleware, Vault.Key FSession)
 thentosSessionMiddleware = do
-    smap :: FSessionStore <- SessionMap.mapStore_
-    key  :: Vault.Key FSession <- Vault.newKey
+    smap <- SessionMap.mapStore_
+    key  <- Vault.newKey
     return (withSession smap cookieName setCookie key, key)
 
 
 -- * frontend action monad
 
-serveFAction :: forall api.
+serveFAction ::
         ( HasServer api
         , Enter (ServerT api FAction) (FAction :~> ExceptT ServantErr IO) (Server api)
         )
      => Proxy api -> ServerT api FAction -> ActionState -> IO Application
-serveFAction _ fServer aState = thentosSessionMiddleware >>= \(mw, key) -> return (mw $ app key)
+serveFAction proxy fServer aState = thentosSessionMiddleware >>= \(mw, key) -> return (mw $ app key)
   where
     app :: Vault.Key FSession -> Application
-    app key = serve (Proxy :: Proxy (FServantSession :> api)) (server' key)
+    app key = serve (sessionProxy proxy) (server' key)
 
-    server' :: Vault.Key FSession -> FSessionMap -> Server api
+    -- server' :: Vault.Key FSession -> FSessionMap -> Server api
     server' key smap = enter nt fServer
       where
         nt :: FAction :~> ExceptT ServantErr IO
         nt = enterFAction aState key smap
+
+sessionProxy :: Proxy a -> Proxy (FServantSession :> a)
+sessionProxy Proxy = Proxy
 
 enterFAction ::
        ActionState
@@ -132,10 +134,10 @@ enterFAction ::
     -> FAction :~> ExceptT ServantErr IO
 enterFAction aState key smap = Nat $ ExceptT . (>>= fmapLM fActionServantErr) . run
   where
-    run :: forall a. FAction a -> IO (Either (ActionError FActionError) a)
+    run :: FAction a -> IO (Either (ActionError FActionError) a)
     run fServer = fst <$> runActionE emptyFrontendSessionData aState fServer'
       where
-        fServer' :: FAction a
+        -- fServer' :: FAction a
         fServer' = do
             case smap key of
                 Nothing -> error $ "enterFAction: internal error in servant-session: no cookie!"
@@ -173,7 +175,7 @@ cookieFromFSession w = get >>= liftLIO . ioTCB . w
 
 getFrontendCfg :: FAction HttpConfig
 getFrontendCfg = do
-    Just (feConfig :: HttpConfig)
+    Just feConfig
         <- (\c -> Tagged <$> c >>. (Proxy :: Proxy '["frontend"]))
             <$> U.unsafeAction U.getConfig
-    return feConfig
+    return (feConfig :: HttpConfig)

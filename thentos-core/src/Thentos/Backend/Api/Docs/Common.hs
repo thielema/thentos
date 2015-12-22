@@ -5,7 +5,6 @@
 {-# LANGUAGE MultiParamTypeClasses                    #-}
 {-# LANGUAGE OverloadedStrings                        #-}
 {-# LANGUAGE PackageImports                           #-}
-{-# LANGUAGE ScopedTypeVariables                      #-}
 {-# LANGUAGE TypeOperators                            #-}
 {-# LANGUAGE UndecidableInstances                     #-}
 
@@ -116,7 +115,7 @@ type HasFullDocExtras api =
     , Foreign.HasForeign api, JS.GenerateList (Foreign.Foreign api)
     )
 
-restDocs :: forall api m. (Monad m, HasFullDocExtras api)
+restDocs :: (Monad m, HasFullDocExtras api)
          => HttpConfig -> Proxy (RestDocs api) -> ServerT (RestDocs' api) m
 restDocs _ proxy =
         pure (restDocsMd proxy)
@@ -127,7 +126,7 @@ restDocs _ proxy =
    :<|> pure . restDocsPurs proxy
 
 
-restDocsMd :: forall api. (HasDocExtras (RestDocs api), Foreign.HasForeign api
+restDocsMd :: (HasDocExtras (RestDocs api), Foreign.HasForeign api
       , JS.GenerateList (Foreign.Foreign api))
          => Proxy (RestDocs api) -> Docs.API
 restDocsMd proxy = prettyMimeRender . hackTogetherSomeReasonableOrder $
@@ -139,25 +138,25 @@ restDocsMd proxy = prettyMimeRender . hackTogetherSomeReasonableOrder $
       where
         intro = Docs.DocIntro ("@@0.0@@" ++ getTitle proxy) [show $ getCabalPackageVersion proxy]
 
-restDocsJs :: forall api. HasFullDocExtras api => Proxy (RestDocs api) -> ST
+restDocsJs :: HasFullDocExtras api => Proxy (RestDocs api) -> ST
 restDocsJs proxy = restDocsSource proxy "// "
-    <> JS.jsForAPI (Proxy :: Proxy api) JS.vanillaJS
+    <> JS.jsForAPI (subProxy proxy) JS.vanillaJS
 
-restDocsNg :: forall api. HasFullDocExtras api => Proxy (RestDocs api) -> ST
+restDocsNg :: HasFullDocExtras api => Proxy (RestDocs api) -> ST
 restDocsNg proxy = restDocsSource proxy "// "
-    <> JS.jsForAPI (Proxy :: Proxy api) (JS.angular JS.defAngularOptions)
+    <> JS.jsForAPI (subProxy proxy) (JS.angular JS.defAngularOptions)
 
-restDocsPursUtilJS :: forall api. HasFullDocExtras api => Proxy (RestDocs api) -> ST
+restDocsPursUtilJS :: HasFullDocExtras api => Proxy (RestDocs api) -> ST
 restDocsPursUtilJS proxy = restDocsSource proxy "// "
     <> snd (Purs.generatePSUtilModule Purs.defaultSettings)
 
-restDocsPursUtilPurs :: forall api. HasFullDocExtras api => Proxy (RestDocs api) -> ST
+restDocsPursUtilPurs :: HasFullDocExtras api => Proxy (RestDocs api) -> ST
 restDocsPursUtilPurs proxy = restDocsSource proxy "-- "
     <> fst (Purs.generatePSUtilModule Purs.defaultSettings)
 
-restDocsPurs :: forall api. HasFullDocExtras api => Proxy (RestDocs api) -> ST -> ST
+restDocsPurs :: HasFullDocExtras api => Proxy (RestDocs api) -> ST -> ST
 restDocsPurs proxy moduleName = restDocsSource proxy "-- "
-    <> Purs.generatePSModule Purs.defaultSettings (cs moduleName) (Proxy :: Proxy api)
+    <> Purs.generatePSModule Purs.defaultSettings (cs moduleName) (subProxy proxy)
 
 restDocsSource :: HasDocExtras (RestDocs api) => Proxy (RestDocs api) -> ST -> ST
 restDocsSource proxy comment = ST.unlines . (ST.stripEnd . (comment <>) <$>) $
@@ -267,7 +266,7 @@ instance ToCapture (Capture "voice" ST) where
     toCapture _ = DocCapture "voice" "voice file for espeak(1).  run `espeak --voices` for a list."
 
 instance (ToSample a) => ToSample (JsonTop a) where
-    toSamples _ = second JsonTop <$> toSamples (Proxy :: Proxy a)
+    toSamples proxy = second JsonTop <$> toSamples (subProxy proxy)
 
 instance ToSample Agent where
     toSamples _ = Docs.singleSample . UserA . UserId $ 0
@@ -304,7 +303,8 @@ instance ToSample CaptchaId where
 
 instance ToSample CaptchaSolution where
     toSamples _ = do
-      let cid :: CaptchaId = fromJustNote "ToSample CaptchaSolution failed unexpectedly" $
+      let cid :: CaptchaId
+          cid = fromJustNote "ToSample CaptchaSolution failed unexpectedly" $
                                           Docs.toSample (Proxy :: Proxy CaptchaId)
       Docs.singleSample $ CaptchaSolution cid "someTeXT"
 
@@ -340,7 +340,7 @@ instance ToSample ByUserOrServiceId
 
 
 instance HasDocs sublayout => HasDocs (ThentosAuth :> sublayout) where
-    docsFor _ dat opts = docsFor (Proxy :: Proxy sublayout) dat opts & Docs.apiIntros %~ (intro:)
+    docsFor proxy dat opts = docsFor (subProxy proxy) dat opts & Docs.apiIntros %~ (intro:)
       where
         intro = Docs.DocIntro "@@1.2@@Authentication" [unlines desc]
         desc = [ "To call any of this API's endpoints as a User or Service,"
@@ -351,7 +351,7 @@ instance HasDocs sublayout => HasDocs (ThentosAuth :> sublayout) where
 
 
 instance HasDocs sublayout => HasDocs (ThentosAssertHeaders :> sublayout) where
-    docsFor _ dat opts = docsFor (Proxy :: Proxy sublayout) dat opts & Docs.apiIntros %~ (intro:)
+    docsFor proxy dat opts = docsFor (subProxy proxy) dat opts & Docs.apiIntros %~ (intro:)
       where
         intro = Docs.DocIntro "@@1.1@@Request Headers" [unlines desc]
         desc = ["If a request has an unknown header with prefix \"X-Thentos-\"."]
@@ -359,11 +359,14 @@ instance HasDocs sublayout => HasDocs (ThentosAssertHeaders :> sublayout) where
 
 instance {-# OVERLAPPABLE #-} (ToSample a, IsNonEmpty cts, AllMimeRender cts a)
       => HasDocs (Post200 cts a) where
-    docsFor Proxy (endpoint, action) opts =
-        case docsFor (Proxy :: Proxy (Post cts a)) (endpoint, action) opts of
+    docsFor proxy (endpoint, action) opts =
+        case docsFor (proxyPostFrom200 proxy) (endpoint, action) opts of
             Docs.API intros singleton -> Docs.API intros $ mutate <$> singleton
       where
         mutate = (& response . respStatus .~ 200)
+
+proxyPostFrom200 :: Proxy (Post200 cts a) -> Proxy (Post cts a)
+proxyPostFrom200 Proxy = Proxy
 
 
 instance ToSample SBS where

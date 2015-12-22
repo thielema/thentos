@@ -51,5 +51,5 @@ instance HasLink sub => HasLink (ThentosAuth :> sub) where
     toLink = toLink . subProxy
 
 -- ToDo: should be part of Servant
-subProxy :: Proxy (a :> sub) -> Proxy sub
+subProxy :: Proxy (f a ) -> Proxy a
 subProxy Proxy = Proxy
