@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
 
 module Thentos.Smtp (sendMail, SendmailError(..), checkSendmail)
 where
@@ -36,8 +35,8 @@ sendMail config mName address subject message = do
             unless (SB.null err) .
                 logger WARNING $ "sendmail produced output on stderr: " ++ cs err
             return $ Right ()
-        Left (e :: IOException) ->
-            return . Left . SendmailError $ "IO error running sendmail: " ++ show e
+        Left e ->
+            return . Left . SendmailError $ "IO error running sendmail: " ++ show (e :: IOException)
   where
     receiverAddress = Address (fromUserName <$> mName) (fromUserEmail $ address)
     sentFromAddress = buildEmailAddress config
@@ -45,8 +44,10 @@ sendMail config mName address subject message = do
     mail :: Mail
     mail = simpleMail' receiverAddress sentFromAddress subject (cs message)
 
-    sendmailPath :: String   = cs  $  config >>. (Proxy :: Proxy '["sendmail_path"])
-    sendmailArgs :: [String] = cs <$> config >>. (Proxy :: Proxy '["sendmail_args"])
+    sendmailPath :: String
+    sendmailPath = cs  $  config >>. (Proxy :: Proxy '["sendmail_path"])
+    sendmailArgs :: [String]
+    sendmailArgs = cs <$> config >>. (Proxy :: Proxy '["sendmail_args"])
 
 -- | Run sendMail to check that we can send emails. Throw an error if sendmail
 -- is not available or doesn't work.

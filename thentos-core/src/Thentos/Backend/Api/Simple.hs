@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds                                #-}
 {-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE OverloadedStrings                        #-}
-{-# LANGUAGE ScopedTypeVariables                      #-}
 {-# LANGUAGE TypeFamilies                             #-}
 {-# LANGUAGE TypeOperators                            #-}
 
@@ -213,11 +212,11 @@ instance {-# OVERLAPPING #-} Foreign.HasForeign (Post '[WAV] a) where
 -- FIXME: move this to module "Auth".
 instance Foreign.HasForeign sub => Foreign.HasForeign (ThentosAuth :> sub) where
     type Foreign (ThentosAuth :> sub) = Foreign.Foreign sub
-    foreignFor Proxy req = Foreign.foreignFor (Proxy :: Proxy sub) $ req
+    foreignFor proxy req = Foreign.foreignFor (subProxy proxy) $ req
             & Foreign.reqHeaders <>~
                 [Foreign.HeaderArg . cs . foldedCase $
                     renderThentosHeaderName ThentosHeaderSession]
 
 instance Foreign.HasForeign sub => Foreign.HasForeign (ThentosAssertHeaders :> sub) where
     type Foreign (ThentosAssertHeaders :> sub) = Foreign.Foreign sub
-    foreignFor Proxy = Foreign.foreignFor (Proxy :: Proxy sub)
+    foreignFor = Foreign.foreignFor . subProxy

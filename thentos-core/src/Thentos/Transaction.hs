@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE FlexibleContexts    #-}
 
@@ -313,7 +312,7 @@ registerPersonaWithContext persona sid cname = do
                         WHERE pers.id = pc.persona_id AND pers.uid = ? AND pc.context_id = ? |]
                   (persona ^. personaUid, cxtId)
     case res of
-        [Only (count :: Int)] -> when (count > 0) . throwError $ MultiplePersonasPerContext
+        [Only count] -> when (count > (0 :: Int)) . throwError $ MultiplePersonasPerContext
         _ -> impossible "registerPersonaWithContext: count didn't return a single result"
     void $ execT [sql| INSERT INTO personas_per_context (persona_id, context_id)
                        VALUES (?, ?) |] (persona ^. personaId, cxtId)
@@ -376,8 +375,8 @@ addGroupToGroup subgroup supergroup = do
         ) SELECT count(*) FROM groups WHERE name = ?
     |] (supergroup, subgroup)
     case res of
-        [Only (count :: Int)] ->
-            when (count > 0) . throwError $ GroupMembershipLoop subgroup supergroup
+        [Only count] ->
+            when (count > (0 :: Int)) . throwError $ GroupMembershipLoop subgroup supergroup
         _                     -> impossible "addGroupToGroup: count didn't return a single result"
     catchViolation catcher' . void $
         execT [sql| INSERT INTO group_tree (subgroup, supergroup) VALUES (?, ?) |]

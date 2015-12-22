@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TupleSections        #-}
 
 module Thentos.Action
@@ -94,7 +93,7 @@ import Data.String.Conversions (ST, SBS, cs)
 import Data.Typeable (Typeable)
 import GHC.Exception (Exception)
 import LIO.DCLabel ((%%), (\/), (/\))
-import LIO.Error (AnyLabelError)
+import LIO.Error (AnyLabelError(AnyLabelError))
 import System.Log.Logger (Priority(DEBUG))
 import Text.Hastache.Context (mkStrContext)
 import Text.Hastache (MuType(MuVariable))
@@ -170,7 +169,7 @@ _lookupUser transaction = do
     val@(uid, _) <- query'P transaction
     tryTaint (RoleAdmin \/ UserA uid %% False)
         (return val)
-        (\ (_ :: AnyLabelError) -> throwError NoSuchUser)
+        (\ (AnyLabelError _) -> throwError NoSuchUser)
 
 -- | Like 'lookupConfirmedUser', but based on 'UserName'.
 lookupConfirmedUserByName :: UserName -> Action e s (UserId, User)
@@ -216,7 +215,8 @@ addUnconfirmedUser userData = do
 sendUserConfirmationMail :: UserFormData -> ConfirmationToken -> Action e s ()
 sendUserConfirmationMail user (ConfirmationToken confToken) = do
     cfg <- getConfig'P
-    let smtpCfg :: SmtpConfig = Tagged $ cfg >>. (Proxy :: Proxy '["smtp"])
+    let smtpCfg :: SmtpConfig
+        smtpCfg = Tagged $ cfg >>. (Proxy :: Proxy '["smtp"])
         subject = cfg >>. (Proxy :: Proxy '["email_templates", "account_verification", "subject"])
         bodyTemplate = cfg >>. (Proxy :: Proxy '["email_templates", "account_verification", "body"])
         feHttp = case cfg >>. (Proxy :: Proxy '["frontend"]) of
@@ -232,7 +232,8 @@ sendUserConfirmationMail user (ConfirmationToken confToken) = do
 sendUserExistsMail :: UserEmail -> Action e s ()
 sendUserExistsMail email = do
     cfg <- getConfig'P
-    let smtpCfg :: SmtpConfig = Tagged $ cfg >>. (Proxy :: Proxy '["smtp"])
+    let smtpCfg :: SmtpConfig
+        smtpCfg = Tagged $ cfg >>. (Proxy :: Proxy '["smtp"])
         subject = cfg >>. (Proxy :: Proxy '["email_templates", "user_exists", "subject"])
         body    = cfg >>. (Proxy :: Proxy '["email_templates", "user_exists", "body"])
     sendMail'P smtpCfg Nothing email subject body
@@ -425,7 +426,7 @@ lookupThentosSession tok = do
     session <- _lookupThentosSession tok
     tryTaint (RoleAdmin \/ session ^. thSessAgent %% False)
         (return session)
-        (\ (_ :: AnyLabelError) -> throwError NoSuchThentosSession)
+        (\ (AnyLabelError _) -> throwError NoSuchThentosSession)
 
 -- | Find 'ThentosSession' from token, without clearance check.
 _lookupThentosSession :: ThentosSessionToken -> Action e s ThentosSession

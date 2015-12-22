@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE ViewPatterns               #-}
 
 module Thentos
@@ -13,11 +12,11 @@ module Thentos
     ) where
 
 import Control.Concurrent.Async (concurrently)
-import Control.Concurrent.MVar (MVar, newMVar)
+import Control.Concurrent.MVar (newMVar)
 import Control.Concurrent (ThreadId, threadDelay, forkIO)
 import Control.Exception (finally)
 import Control.Monad (void, when, forever)
-import "cryptonite" Crypto.Random (ChaChaDRG, drgNew)
+import "cryptonite" Crypto.Random (drgNew)
 import Database.PostgreSQL.Simple (Connection, connectPostgreSQL, close)
 import Data.Configifier ((>>.), Tagged(Tagged))
 import Data.Either (isRight)
@@ -66,10 +65,10 @@ main = makeMain $ \ actionState mBeConfig mFeConfig -> do
 makeMain :: (ActionState -> Maybe HttpConfig -> Maybe HttpConfig -> IO ()) -> IO ()
 makeMain commandSwitch =
   do
-    config :: ThentosConfig <- getConfig "devel.config"
+    config <- getConfig "devel.config"
     checkSendmail (Tagged $ config >>. (Proxy :: Proxy '["smtp"]))
 
-    rng :: MVar ChaChaDRG   <- drgNew >>= newMVar
+    rng <- drgNew >>= newMVar
     let dbName = config >>. (Proxy :: Proxy '["database", "name"])
     connPool <- createConnPoolAndInitDb $ cs dbName
     let actionState = ActionState (connPool, rng, config)
@@ -134,19 +133,19 @@ createDefaultUser conn (Just (getDefaultUser -> (userData, roles))) = do
             -- user
             user <- makeUserFromFormData userData
             logger DEBUG $ "No users.  Creating default user: " ++ ppShow (UserId 0, user)
-            (eu :: Either (ThentosError Void) UserId) <- runThentosQuery conn $ T.addUserPrim
+            eu <- runThentosQuery conn $ T.addUserPrim
                     (Just $ UserId 0) user True
 
-            if eu == Right (UserId 0)
+            if eu == (Right (UserId 0) :: Either (ThentosError Void) UserId)
                 then logger DEBUG $ "[ok]"
                 else logger ERROR $ "failed to create default user: " ++ ppShow (UserId 0, eu, user)
 
             -- roles
             logger DEBUG $ "Adding default user to roles: " ++ ppShow roles
-            (result :: [Either (ThentosError Void) ()]) <-
+            result <-
                  mapM (runThentosQuery conn . T.assignRole (UserA . UserId $ 0)) roles
 
-            if all isRight result
+            if all isRight (result :: [Either (ThentosError Void) ()])
                 then logger DEBUG $ "[ok]"
                 else logger ERROR $ "failed to assign default user to roles: " ++ ppShow (UserId 0, result, user, roles)
         Left e          -> logger ERROR $ "error looking up default user: " ++ show e

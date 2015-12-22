@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 
@@ -46,10 +45,9 @@ import Control.Lens ((.~), (^.))
 import Control.Monad.Except (catchError, throwError)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.State (get, modify)
-import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions (ST, (<>))
 import LIO.DCLabel (toCNF)
-import Network.Wai.Parse (Param, parseRequestBody, lbsBackEnd)
+import Network.Wai.Parse (parseRequestBody, lbsBackEnd)
 import Network.Wai (Request, Middleware, requestMethod)
 import Servant (QueryParam, (:<|>)((:<|>)), (:>), ServerT)
 import Servant.Server.Internal (HasServer, Router'(WithRequest), RouteResult(Route),
@@ -73,6 +71,8 @@ import Thentos.Types
 import qualified Thentos.Action.SimpleAuth as U
 import qualified Thentos.Action.Unsafe as U
 
+import Thentos.Backend.Api.Auth (subProxy)
+
 
 -- * helpers
 
@@ -86,15 +86,14 @@ data FormReqBody
 instance (HasServer sublayout) => HasServer (FormReqBody :> sublayout) where
   type ServerT (FormReqBody :> sublayout) m = Env Identity -> ServerT sublayout m
 
-  route Proxy subserver = WithRequest $ \request ->
-      route (Proxy :: Proxy sublayout) (addBodyCheck subserver (bodyCheck request))
+  route proxy subserver = WithRequest $ \request ->
+      route (subProxy proxy) (addBodyCheck subserver (bodyCheck request))
     where
       -- FIXME: honor accept header
       -- FIXME: file upload.  shouldn't be hard!
       bodyCheck :: Request -> IO (RouteResult (Env Identity))
       bodyCheck req = do
-          q :: [Param]
-              <- parseRequestBody lbsBackEnd req >>=
+          q   <- parseRequestBody lbsBackEnd req >>=
                   \case (q, []) -> return q
                         (_, _:_) -> error "servant-digestive-functors: file upload not implemented!"
 
@@ -117,7 +116,7 @@ instance (HasServer sublayout) => HasServer (FormReqBody :> sublayout) where
 -- FIXME: why does processor I have 'FAction' in its type?
 -- FIXME: replace H.Html in processor2 and renderer with @(MimeRender 'HTML a => a)@ (or something).
 -- FIXME: move this to servant-digestive-functors.
-formH :: forall payload.
+formH ::
      ST                                     -- ^ formAction
   -> Form H.Html FAction payload            -- ^ processor I
   -> (payload -> FAction H.Html)            -- ^ processor II
@@ -131,8 +130,8 @@ formH formAction processor1 processor2 renderer = getH :<|> postH
 
     postH :: Env Identity -> FAction H.Html
     postH env = postForm formAction processor1 (\_ -> return $ return . runIdentity . env) >>=
-        \case (_,                Just payload) -> processor2 payload
-              (v :: View H.Html, Nothing)      -> renderer v formAction
+        \case (_, Just payload) -> processor2 payload
+              (v, Nothing)      -> renderer v formAction
 
 
 -- * register (thentos)

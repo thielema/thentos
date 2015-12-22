@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric          #-}
-{-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
 
 module Thentos.Frontend.Types where
@@ -95,8 +94,8 @@ instance ToJSON ServiceLoginState where
 
 instance FromJSON ServiceLoginState where
     parseJSON v = do
-        (mSid, rr' :: Aeson.Value) <- Aeson.parseJSON v
-        case rr' of
+        (mSid, rr') <- Aeson.parseJSON v
+        case rr' :: Aeson.Value of
             Aeson.String rr'' -> case parseRelativeRef laxURIParserOptions $ cs rr'' of
                 (Right rr) -> return $ ServiceLoginState mSid rr
                 _ -> mzero

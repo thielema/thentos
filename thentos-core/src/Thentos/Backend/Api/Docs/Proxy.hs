@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds                                #-}
 {-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE OverloadedStrings                        #-}
-{-# LANGUAGE ScopedTypeVariables                      #-}
 {-# LANGUAGE TypeFamilies                             #-}
 {-# LANGUAGE TypeOperators                            #-}
 
@@ -22,7 +21,7 @@ import Thentos.Backend.Api.Proxy (ServiceProxy)
 
 
 instance HasDocs sublayout => HasDocs (sublayout :<|> ServiceProxy) where
-    docsFor _ dat opt = docsFor (Proxy :: Proxy sublayout) dat opt
+    docsFor proxy dat opt = docsFor (altProxy proxy) dat opt
                         & Docs.apiIntros %~ (++ intros)
       where
         intros = [Docs.DocIntro "@@1.3@@Authenticating Proxy" [unlines desc]]
@@ -40,3 +39,7 @@ instance Foreign.HasForeign ServiceProxy where
     type Foreign ServiceProxy = Foreign.Req
     foreignFor Proxy req =
         req & Foreign.funcName  %~ ("ServiceProxy" :)
+
+-- ToDo: should be part of Servant
+altProxy :: Proxy (sublayout :<|> ServiceProxy) -> Proxy sublayout
+altProxy Proxy = Proxy

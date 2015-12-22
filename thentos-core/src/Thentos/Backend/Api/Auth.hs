@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances                        #-}
-{-# LANGUAGE ScopedTypeVariables                      #-}
 {-# LANGUAGE TypeFamilies                             #-}
 {-# LANGUAGE TypeOperators                            #-}
 
@@ -44,9 +43,13 @@ data ThentosAuth
 
 instance HasServer sub => HasServer (ThentosAuth :> sub) where
   type ServerT (ThentosAuth :> sub) m = Maybe ThentosSessionToken -> ServerT sub m
-  route Proxy sub = WithRequest $ \ request -> route (Proxy :: Proxy sub)
+  route proxy sub = WithRequest $ \ request -> route (subProxy proxy)
       (passToServer sub $ lookupThentosHeaderSession renderThentosHeaderName request)
 
 instance HasLink sub => HasLink (ThentosAuth :> sub) where
     type MkLink (ThentosAuth :> sub) = MkLink sub
-    toLink _ = toLink (Proxy :: Proxy sub)
+    toLink = toLink . subProxy
+
+-- ToDo: should be part of Servant
+subProxy :: Proxy (a :> sub) -> Proxy sub
+subProxy Proxy = Proxy

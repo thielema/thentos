@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleContexts            #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving  #-}
 {-# LANGUAGE OverloadedStrings           #-}
-{-# LANGUAGE ScopedTypeVariables         #-}
 {-# LANGUAGE TemplateHaskell             #-}
 {-# LANGUAGE ViewPatterns                #-}
 
@@ -629,10 +628,10 @@ data ProxyUri = ProxyUri { proxyHost :: SBS
 renderProxyUri :: ProxyUri -> ST
 renderProxyUri (ProxyUri host port path) = "http://" <> host' <> port' <//> cs path
   where
-    host' :: ST = stripTrailingSlash $ cs host
-    port' :: ST = if port == 80 then "" else cs $ ':' : show port
+    host' = stripTrailingSlash $ cs host
+    port' = if port == 80 then "" else cs $ ':' : show port
 
-parseProxyUri :: forall m . MonadError String m => ST -> m ProxyUri
+parseProxyUri :: MonadError String m => ST -> m ProxyUri
 parseProxyUri t = case parseURI laxURIParserOptions $ cs t of
     Right uri -> do
         when (schemeBS (uriScheme uri) /= "http") $ _fail "Expected http schema"
@@ -647,7 +646,7 @@ parseProxyUri t = case parseURI laxURIParserOptions $ cs t of
                         }
     Left err -> _fail $ "Invalid URI: " ++ show err
   where
-    _fail :: String -> m a
+    _fail :: MonadError String m => String -> m a
     _fail = throwError . ("parseProxyUri: " ++)
 
 instance Aeson.FromJSON ProxyUri

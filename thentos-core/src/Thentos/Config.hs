@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeOperators        #-}
 
 module Thentos.Config
@@ -173,11 +172,11 @@ getConfig configFile = do
     sources <- defaultSources [configFile]
     logger DEBUG $ "config sources:\n" ++ ppShow sources
 
-    result :: Either Error ThentosConfig <- try $ configifyWithDefault (TaggedM defaultThentosConfig) sources
+    result <- try $ configifyWithDefault (TaggedM defaultThentosConfig) sources
     case result of
         Left e -> do
             logger CRITICAL $ "error parsing config: " ++ ppShow e
-            throwIO e
+            throwIO (e :: Error)
         Right cfg -> do
             logger DEBUG $ "parsed config (yaml):\n" ++ cs (renderConfigFile cfg)
             logger DEBUG $ "parsed config (raw):\n" ++ ppShow cfg
