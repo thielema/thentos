@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE ViewPatterns         #-}
 
 -- | This is a port of https://hackage.haskell.org/package/hs-captcha (which is based on
 -- http://libgd.github.io/) to diagrams.  The generated strings are beautified with elocrypt.
@@ -272,7 +271,8 @@ mkAudioChallenge eSpeakVoice solution = do
         throwError $ AudioCaptchaVoiceNotFound eSpeakVoice
 
     eResult <- unsafeLiftIO . withSystemTempDirectory "thentosAudioCaptcha" $
-      \((</> "captcha.wav") -> tempFile) -> do
+      \tempDir -> do
+        let tempFile = tempDir </> "captcha.wav"
         let args :: [String]
             args = [ "-w", tempFile
                        -- FIXME: use "--stdout" (when I tried, I had truncation issues)
@@ -296,6 +296,6 @@ mkAudioChallenge eSpeakVoice solution = do
         Right v -> return v
 
 validateLangCode :: String -> Bool
-validateLangCode (cs -> s) =
+validateLangCode = (.cs) $ \s ->
     not (ST.null s || ST.isPrefixOf "-" s || ST.isSuffixOf "-" s)
     && ST.all (`elem` '-':['a'..'z']) s

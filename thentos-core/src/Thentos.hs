@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 module Thentos
     ( main
@@ -126,7 +125,8 @@ createConnPoolAndInitDb dbName = do
 -- nothing.  Otherwise, create default user.
 createDefaultUser :: Connection -> Maybe DefaultUserConfig -> IO ()
 createDefaultUser _ Nothing = return ()
-createDefaultUser conn (Just (getDefaultUser -> (userData, roles))) = do
+createDefaultUser conn (Just cfg) = do
+    let (userData, roles) = getDefaultUser cfg
     eq <- runThentosQuery conn $ (void $ T.lookupConfirmedUser (UserId 0) :: ThentosQuery Void ())
     case eq of
         Right _         -> logger DEBUG $ "default user already exists"
